@@ -1,10 +1,11 @@
-<!-- livebook:{"app_settings":{"access_type":"public","output_type":"rich","slug":"karel-dreams"}} -->
+<!-- livebook:{"app_settings":{"access_type":"public","slug":"karel-dreams"}} -->
 
 # Karel Dreams
 
 ```elixir
 Mix.install([
-  {:kino, "~> 0.11.0"}
+  {:kino, "~> 0.11.0"},
+  {:jason, "~> 1.4"}
 ])
 ```
 
@@ -360,46 +361,72 @@ end
 ```
 
 ```elixir
-walls = [{5, 5}, {6, 5}, {1, 1}]
+defmodule Karel do
+  def run_script(karel, text) do
+    with {:ok, script} <- parse_script(text),
+         {:ok, _} <- Enum.reduce_while(script, {:ok, %{}}, &cmd(karel, &1, &2)) do
+      :ok
+    end
+  end
+
+  defp parse_script(text) do
+    Jason.decode(text)
+  end
+
+  defp cmd(karel, "step", acc) do
+    Karel.Kino.step(karel)
+    Process.sleep(500)
+    {:cont, acc}
+  end
+
+  defp cmd(karel, "turn-right", acc) do
+    Karel.Kino.turn(karel, :right)
+    {:cont, acc}
+  end
+
+  defp cmd(karel, "turn-left", acc) do
+    Karel.Kino.turn(karel, :left)
+    {:cont, acc}
+  end
+end
+```
+
+```elixir
+walls = [{5, 5}, {6, 5}, {2, 1}]
 karel = Karel.Kino.new(Karel.Game.new(walls: walls))
 
 step_button = Kino.Control.button("step")
 turn_left_button = Kino.Control.button("turn left")
 turn_right_button = Kino.Control.button("turn right")
 
-events = [step: step_button, turn_left: turn_left_button, turn_right: turn_right_button]
+default_script = ~s|["step", "turn-left", "step", "turn-right"]|
+script_text = Kino.Input.textarea("", default: default_script, monospace: true)
+script_form = Kino.Control.form([script: script_text], submit: "run")
+
+events = [
+  step: step_button,
+  turn_left: turn_left_button,
+  turn_right: turn_right_button,
+  script_form: script_form
+]
+
 stream = Kino.Control.tagged_stream(events)
 
 Kino.listen(stream, fn
   {:step, %{type: :click}} -> Karel.Kino.step(karel)
   {:turn_left, %{type: :click}} -> Karel.Kino.turn(karel, :left)
   {:turn_right, %{type: :click}} -> Karel.Kino.turn(karel, :right)
+  {:script_form, %{data: %{script: script}, type: :submit}} -> Karel.run_script(karel, script)
 end)
 
 Kino.Layout.grid(
   [
     karel,
-    Kino.Layout.grid(
-      [
-        turn_left_button,
-        step_button,
-        turn_right_button
-      ],
-      columns: 3
+    Kino.Layout.tabs(
+      manual: Kino.Layout.grid([turn_left_button, step_button, turn_right_button], columns: 3),
+      script: Kino.Layout.grid([script_form])
     )
   ],
   columns: 2
 )
-```
-
-```elixir
-Karel.Kino.turn(karel, :left)
-Process.sleep(1000)
-Karel.Kino.step(karel)
-Process.sleep(1000)
-Karel.Kino.step(karel)
-Process.sleep(1000)
-Karel.Kino.turn(karel, :right)
-Karel.Kino.turn(karel, :right)
-Karel.Kino.step(karel)
 ```
