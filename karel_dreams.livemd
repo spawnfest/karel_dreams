@@ -1,3 +1,5 @@
+<!-- livebook:{"app_settings":{"access_type":"public","output_type":"rich","slug":"karel-dreams"}} -->
+
 # Karel Dreams
 
 ```elixir
@@ -6,8 +8,68 @@ Mix.install([
 ])
 ```
 
-## Section
+## Code
 
 ```elixir
+defmodule Karel.Board do
+  defstruct [:cols, :rows]
+  def new(cols), do: new(cols, cols)
+  def new(cols, rows), do: %__MODULE__{cols: cols, rows: rows}
+end
+```
 
+```elixir
+defmodule Karel.Kino do
+  use Kino.JS
+
+  def new(board) do
+    Kino.JS.new(__MODULE__, %{cols: board.cols, html: html(board)})
+  end
+
+  defp html(board) do
+    ~s|<div class="board">#{html_fields(board)}</div>|
+  end
+
+  defp html_fields(board) do
+    for x <- 1..board.cols, y <- 1..board.rows do
+      ~s|<div id="board-field-#{x}-#{y}"></div>|
+    end
+  end
+
+  asset "main.js" do
+    """
+    export function init(ctx, board) {
+      document.querySelector(':root').style.setProperty('--board-cols', board.cols);
+      ctx.importCSS("main.css")
+      ctx.root.innerHTML = board.html;
+    }
+    """
+  end
+
+  asset "main.css" do
+    """
+    :root {
+      --border-color: White;
+      --border-size: 2px;
+      --bg-color: LightGrey;
+    }
+    .board {
+      background: var(--border-color);
+      border: var(--border-size) solid var(--border-color);
+      display: grid;
+      grid-gap: var(--border-size);
+      grid-template-columns: repeat(var(--board-cols), auto);
+      width: 50vw;
+    }
+    .board div {
+      background: var(--bg-color);
+      aspect-ratio: 1/1;
+    }
+    """
+  end
+end
+```
+
+```elixir
+Karel.Kino.new(Karel.Board.new(10))
 ```
