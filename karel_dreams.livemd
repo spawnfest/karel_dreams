@@ -149,7 +149,12 @@ defmodule Karel.Game do
 
   def step(game) do
     robot = Robot.step(game.robot)
-    %{game | robot: robot}
+
+    if robot.x in 1..game.board.cols and robot.y in 1..game.board.rows do
+      {:ok, %{game | robot: robot}}
+    else
+      {:error, :wall}
+    end
   end
 
   def turn(game, dir) do
@@ -202,10 +207,15 @@ defmodule Karel.Kino do
 
   @impl true
   def handle_call(:step, _, ctx) do
-    game = Game.step(ctx.assigns.game)
-    robot = game.robot
-    broadcast_event(ctx, "step", %{x: robot.x, y: robot.y, dir: robot.dir})
-    {:reply, :ok, assign(ctx, game: game)}
+    case Game.step(ctx.assigns.game) do
+      {:ok, game} ->
+        robot = game.robot
+        broadcast_event(ctx, "step", %{x: robot.x, y: robot.y, dir: robot.dir})
+        {:reply, :ok, assign(ctx, game: game)}
+
+      {:error, _} = error ->
+        {:reply, error, ctx}
+    end
   end
 
   def handle_call({:turn, dir}, _, ctx) do
@@ -271,7 +281,6 @@ defmodule Karel.Kino do
       display: grid;
       grid-gap: var(--border-size);
       grid-template-columns: repeat(var(--board-cols), auto);
-      width: 50vw;
     }
     .board div {
       background: var(--bg-color);
@@ -322,6 +331,34 @@ end
 
 ```elixir
 karel = Karel.Kino.new(Karel.Game.new())
+
+step_button = Kino.Control.button("step")
+turn_left_button = Kino.Control.button("turn left")
+turn_right_button = Kino.Control.button("turn right")
+
+events = [step: step_button, turn_left: turn_left_button, turn_right: turn_right_button]
+stream = Kino.Control.tagged_stream(events)
+
+Kino.listen(stream, fn
+  {:step, %{type: :click}} -> Karel.Kino.step(karel)
+  {:turn_left, %{type: :click}} -> Karel.Kino.turn(karel, :left)
+  {:turn_right, %{type: :click}} -> Karel.Kino.turn(karel, :right)
+end)
+
+Kino.Layout.grid(
+  [
+    karel,
+    Kino.Layout.grid(
+      [
+        turn_left_button,
+        step_button,
+        turn_right_button
+      ],
+      columns: 3
+    )
+  ],
+  columns: 2
+)
 ```
 
 ```elixir
