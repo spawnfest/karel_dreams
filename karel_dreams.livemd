@@ -5,7 +5,8 @@
 ```elixir
 Mix.install([
   {:kino, "~> 0.11.0"},
-  {:jason, "~> 1.4"}
+  {:jason, "~> 1.4"},
+  {:langchain, "~> 0.1.2"}
 ])
 ```
 
@@ -415,12 +416,76 @@ end
 ```
 
 ```elixir
+defmodule Karel.AI do
+  alias LangChain.Chains.LLMChain
+  alias LangChain.ChatModels.ChatOpenAI
+  alias LangChain.Message
+
+  def openai_key() do
+    case System.fetch_env("LB_OPENAI_KEY") do
+      {:ok, key} ->
+        Application.put_env(:langchain, :openai_key, key)
+        :ok
+
+      :error ->
+        {:error, "OPENAI_KEY is not set in Secrets"}
+    end
+  end
+
+  def init() do
+    {:ok, updated_chain, _response} =
+      %{llm: ChatOpenAI.new!(%{model: "gpt-3.5-turbo"})}
+      |> LLMChain.new!()
+      |> LLMChain.add_messages([
+        Message.new_system!("""
+        You will translate text natural language to JSON.
+
+        Here are a few examples:
+
+        Input: Go one step forward.
+        Output: ["step"]
+        ---
+        Input: Go two steps forward.
+        Output: ["step", "step"]
+        ---
+        Input: Turn right.
+        Output: ["turn-right"]
+        ---
+        Input: Go five steps forward, then turn right, then go three steps forward.
+        Ouput: ["step", "step", "step", "step", "step", "turn-right", "step", "step", "step"]
+
+        You reply will include only the content of the output, like this:
+        ["turn-right", "step", "step", "turn-left", step", "turn-right", "step"]
+        """)
+      ])
+      |> LLMChain.run()
+
+    updated_chain
+  end
+
+  def translate(updated_chain, text) do
+    {:ok, _updated_chain, response} =
+      updated_chain
+      |> LLMChain.add_message(Message.new_user!(text))
+      |> LLMChain.run()
+
+    response.content
+  end
+end
+```
+
+```elixir
 defmodule Karel do
   def run_script(karel, text) do
     with {:ok, script} <- parse_script(text),
          {:ok, _} <- Enum.reduce_while(script, {:ok, %{}}, &cmd(karel, &1, &2)) do
       :ok
     end
+  end
+
+  def run_ai(karel, chain, text) do
+    script = Karel.AI.translate(chain, text)
+    Karel.run_script(karel, script)
   end
 
   defp parse_script(text) do
@@ -456,6 +521,9 @@ end
 ```
 
 ```elixir
+:ok = Karel.AI.openai_key()
+chain = Karel.AI.init()
+
 walls = [{5, 5}, {6, 5}, {2, 1}]
 karel = Karel.Kino.new(Karel.Game.new(walls: walls))
 
@@ -477,11 +545,15 @@ default_script = """
 script_text = Kino.Input.textarea("", default: default_script, monospace: true)
 script_form = Kino.Control.form([script: script_text], submit: "run")
 
+ai_text = Kino.Input.textarea("", default: "go 2 steps", monospace: true)
+ai_form = Kino.Control.form([script: ai_text], submit: "run")
+
 events = [
   step: step_button,
   turn_left: turn_left_button,
   turn_right: turn_right_button,
-  script_form: script_form
+  script_form: script_form,
+  ai_form: ai_form
 ]
 
 stream = Kino.Control.tagged_stream(events)
@@ -491,6 +563,7 @@ Kino.listen(stream, fn
   {:turn_left, %{type: :click}} -> Karel.Kino.turn(karel, :left)
   {:turn_right, %{type: :click}} -> Karel.Kino.turn(karel, :right)
   {:script_form, %{data: %{script: script}, type: :submit}} -> Karel.run_script(karel, script)
+  {:ai_form, %{data: %{script: script}, type: :submit}} -> Karel.run_ai(karel, chain, script)
 end)
 
 Kino.Layout.grid(
@@ -498,7 +571,8 @@ Kino.Layout.grid(
     karel,
     Kino.Layout.tabs(
       manual: Kino.Layout.grid([turn_left_button, step_button, turn_right_button], columns: 3),
-      script: Kino.Layout.grid([script_form])
+      script: Kino.Layout.grid([script_form]),
+      ai: Kino.Layout.grid([ai_form])
     )
   ],
   columns: 2
