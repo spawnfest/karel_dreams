@@ -225,6 +225,10 @@ defmodule Karel.Kino do
     Kino.JS.Live.new(__MODULE__, game)
   end
 
+  def reset(kino, game) do
+    Kino.JS.Live.call(kino, {:reset, game})
+  end
+
   def step(kino) do
     Kino.JS.Live.call(kino, :step)
   end
@@ -248,19 +252,7 @@ defmodule Karel.Kino do
 
   @impl true
   def handle_connect(ctx) do
-    images = %{robot: Images.robot()}
-    game = ctx.assigns.game
-
-    data = %{
-      cols: game.board.cols,
-      html: html(game.board),
-      images: images,
-      x: game.robot.x,
-      y: game.robot.y,
-      dir: game.robot.dir
-    }
-
-    {:ok, data, ctx}
+    {:ok, init_data(ctx.assigns.game), ctx}
   end
 
   @impl true
@@ -298,6 +290,23 @@ defmodule Karel.Kino do
     {:reply, :ok, assign(ctx, game: game)}
   end
 
+  def handle_call({:reset, game}, _, ctx) do
+    data = init_data(game) |> Map.delete(:images)
+    broadcast_event(ctx, "reset", data)
+    {:reply, :ok, assign(ctx, game: game)}
+  end
+
+  defp init_data(game) do
+    %{
+      cols: game.board.cols,
+      html: html(game.board),
+      images: %{robot: Images.robot()},
+      x: game.robot.x,
+      y: game.robot.y,
+      dir: game.robot.dir
+    }
+  end
+
   defp html(board) do
     ~s|<div class="board">#{html_fields(board)}</div>|
   end
@@ -325,6 +334,11 @@ defmodule Karel.Kino do
       ctx.importCSS("main.css")
       ctx.root.innerHTML = data.html
       fieldElement(data.x, data.y).innerHTML = data.images.robot[data.dir]
+
+      ctx.handleEvent("reset", (r) => {
+        ctx.root.innerHTML = r.html
+        fieldElement(r.x, r.y).innerHTML = data.images.robot[data.dir]
+      });
 
       ctx.handleEvent("step", (step) => {
         var robot = document.getElementById("robot")
@@ -578,6 +592,7 @@ defmodule Karel.UI do
     step_button = Kino.Control.button("step")
     turn_left_button = Kino.Control.button("turn left")
     turn_right_button = Kino.Control.button("turn right")
+    reset_button = Kino.Control.button("reset board")
 
     default_script = """
     [
@@ -602,6 +617,7 @@ defmodule Karel.UI do
       step: step_button,
       turn_left: turn_left_button,
       turn_right: turn_right_button,
+      reset: reset_button,
       script_form: script_form,
       ai_form: ai_form
     ]
@@ -619,6 +635,19 @@ defmodule Karel.UI do
 
       {:turn_right, %{type: :click}}, state ->
         state = report(state, Karel.Kino.turn(karel, :right))
+        {:cont, state}
+
+      {:reset, %{type: :click}}, state ->
+        state =
+          case Karel.Kino.reset(karel, Karel.Game.new(walls: walls)) do
+            :ok ->
+              Kino.Frame.clear(state.output)
+              %{state | out: []}
+
+            error ->
+              report(state, error)
+          end
+
         {:cont, state}
 
       {:script_form, %{data: %{script: script}, type: :submit}}, state ->
@@ -648,7 +677,11 @@ defmodule Karel.UI do
           Layout.tabs(
             script: Layout.grid([script_form]),
             ai: Layout.grid([ai_form]),
-            manual: Layout.grid([turn_left_button, step_button, turn_right_button], columns: 3)
+            manual:
+              Layout.grid([
+                Layout.grid([turn_left_button, step_button, turn_right_button], columns: 3),
+                reset_button
+              ])
           )
         ],
         columns: 2
