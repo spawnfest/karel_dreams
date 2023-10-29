@@ -605,9 +605,9 @@ defmodule Karel.UI do
         [
           karel,
           Layout.tabs(
-            manual: Layout.grid([turn_left_button, step_button, turn_right_button], columns: 3),
             script: Layout.grid([script_form]),
-            ai: Layout.grid([ai_form])
+            ai: Layout.grid([ai_form]),
+            manual: Layout.grid([turn_left_button, step_button, turn_right_button], columns: 3)
           )
         ],
         columns: 2
