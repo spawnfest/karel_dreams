@@ -767,3 +767,31 @@ end
 ```elixir
 Karel.UI.new()
 ```
+
+```elixir
+Kino.Markdown.new("""
+Karel understands 5 basic instructions: `turn-left`, `turn-right`, `step` (move one step forward), `put-color` (paint the cell he is standing on with a specified color) and `clear-color` (remove the color).
+
+You can control Karel in 3 different ways: **with a script**, **with AI** (natural language) or **manually** (buttons).
+
+### Script examples
+
+`["step", "step", "turn-right", "step", "step", "turn-right", "step", "step", "turn-right", "step", "step"]`
+
+You can use this syntax to paint: `{"put-color": "HTMLColorName"}`
+
+`[{"put-color": "purple"}, "step", {"put-color": "purple"},  "step",{"put-color": "purple"},  "turn-left", "step", {"put-color": "purple"}, "step", {"put-color": "purple"}, "turn-left", "step",{"put-color": "purple"},  "step", {"put-color": "purple"}]`
+
+### AI examples
+
+You can try these: `Go 3 steps forward, then turn left, then move two steps.`
+
+`Draw red, move 3 steps, then draw pink, turn left, go 2 steps and draw orange.`
+
+`Draw a yellow line 4 units long.`
+
+_Note 1: For this feature to work you need to have tokens (credit)._
+
+_Note 2: Sometimes it takes a while to translate the AI instructions and for Karel to start walking._
+""")
+```
