@@ -123,7 +123,7 @@ end
 
 ```elixir
 defmodule Karel.Board do
-  defstruct [:cols, :rows, :walls]
+  defstruct [:cols, :rows, :walls, colors: %{}]
 
   def new(opts \\ []) do
     size = Keyword.get(opts, :size, 10)
@@ -135,6 +135,18 @@ defmodule Karel.Board do
 
   def wall?(board, x, y) do
     not (x in 1..board.cols and y in 1..board.rows) or MapSet.member?(board.walls, {x, y})
+  end
+
+  def put_color(board, x, y, color) do
+    put_in(board.colors[{x, y}], color)
+  end
+
+  def clear_color(board, x, y) do
+    %{board | colors: Map.delete(board.colors, {x, y})}
+  end
+
+  def color(board, x, y) do
+    Map.get(board.colors, {x, y})
   end
 end
 
@@ -190,6 +202,16 @@ defmodule Karel.Game do
     robot = Robot.turn(game.robot, dir)
     %{game | robot: robot}
   end
+
+  def put_color(game, color) do
+    robot = game.robot
+    %{game | board: Board.put_color(game.board, robot.x, robot.y, color)}
+  end
+
+  def clear_color(game) do
+    robot = game.robot
+    %{game | board: Board.clear_color(game.board, robot.x, robot.y)}
+  end
 end
 ```
 
@@ -211,6 +233,14 @@ defmodule Karel.Kino do
 
   def turn(kino, dir) when dir in [:left, :right] do
     Kino.JS.Live.call(kino, {:turn, dir})
+  end
+
+  def put_color(kino, color) do
+    Kino.JS.Live.call(kino, {:put_color, color})
+  end
+
+  def clear_color(kino) do
+    Kino.JS.Live.call(kino, :clear_color)
   end
 
   @impl true
@@ -255,6 +285,20 @@ defmodule Karel.Kino do
     {:reply, :ok, assign(ctx, game: game)}
   end
 
+  def handle_call({:put_color, color}, _, ctx) do
+    game = Game.put_color(ctx.assigns.game, color)
+    robot = game.robot
+    broadcast_event(ctx, "put-color", %{x: robot.x, y: robot.y, color: color})
+    {:reply, :ok, assign(ctx, game: game)}
+  end
+
+  def handle_call(:clear_color, _, ctx) do
+    game = Game.clear_color(ctx.assigns.game)
+    robot = game.robot
+    broadcast_event(ctx, "clear-color", %{x: robot.x, y: robot.y})
+    {:reply, :ok, assign(ctx, game: game)}
+  end
+
   defp html(board) do
     ~s|<div class="board">#{html_fields(board)}</div>|
   end
@@ -262,7 +306,9 @@ defmodule Karel.Kino do
   defp html_fields(board) do
     for y <- 1..board.rows, x <- 1..board.cols do
       wall = if Board.wall?(board, x, y), do: Images.wall()
-      ~s|<div id="board-field-#{x}-#{y}">#{wall}</div>|
+      color = Board.color(board, x, y)
+      color = if color, do: ~s|style="--bg-color: #{color}"|
+      ~s|<div id="board-field-#{x}-#{y}" #{color}>#{wall}</div>|
     end
   end
 
@@ -285,6 +331,14 @@ defmodule Karel.Kino do
         var robot = document.getElementById("robot")
         robot.remove()
         fieldElement(turn.x, turn.y).innerHTML = data.images.robot[turn.dir]
+      });
+
+      ctx.handleEvent("put-color", (pc) => {
+        fieldElement(pc.x, pc.y).style.setProperty('--bg-color', pc.color)
+      });
+
+      ctx.handleEvent("clear-color", (cc) => {
+        fieldElement(cc.x, cc.y).style.removeProperty('--bg-color')
       });
     }
 
@@ -388,6 +442,16 @@ defmodule Karel do
     Karel.Kino.turn(karel, :left)
     {:cont, acc}
   end
+
+  defp cmd(karel, %{"put-color" => color}, acc) do
+    Karel.Kino.put_color(karel, color)
+    {:cont, acc}
+  end
+
+  defp cmd(karel, "clear-color", acc) do
+    Karel.Kino.clear_color(karel)
+    {:cont, acc}
+  end
 end
 ```
 
@@ -399,7 +463,17 @@ step_button = Kino.Control.button("step")
 turn_left_button = Kino.Control.button("turn left")
 turn_right_button = Kino.Control.button("turn right")
 
-default_script = ~s|["step", "turn-left", "step", "turn-right"]|
+default_script = """
+[
+  {"put-color": "red"},
+  "step",
+  "turn-left",
+  "clear-color",
+  "step",
+  "turn-right"
+]
+"""
+
 script_text = Kino.Input.textarea("", default: default_script, monospace: true)
 script_form = Kino.Control.form([script: script_text], submit: "run")
 
