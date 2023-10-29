@@ -8,6 +8,8 @@ Mix.install([
   {:jason, "~> 1.4"},
   {:langchain, "~> 0.1.2"}
 ])
+
+Kino.nothing()
 ```
 
 ## Images
@@ -115,6 +117,8 @@ defmodule Karel.Images do
     """
   end
 end
+
+Kino.nothing()
 ```
 
 ## Code
@@ -211,6 +215,8 @@ defmodule Karel.Game do
     %{game | board: Board.clear_color(game.board, robot.x, robot.y)}
   end
 end
+
+Kino.nothing()
 ```
 
 ```elixir
@@ -432,6 +438,8 @@ defmodule Karel.Kino do
     """
   end
 end
+
+Kino.nothing()
 ```
 
 ```elixir
@@ -521,6 +529,8 @@ defmodule Karel.AI do
     end
   end
 end
+
+Kino.nothing()
 ```
 
 ```elixir
@@ -579,6 +589,8 @@ defmodule Karel do
     {:error, {:invalid_cmd, invalid}}
   end
 end
+
+Kino.nothing()
 ```
 
 ````elixir
@@ -627,6 +639,8 @@ defmodule Karel.Help do
     """
   end
 end
+
+Kino.nothing()
 ````
 
 ```elixir
@@ -834,6 +848,8 @@ defmodule Karel.UI do
     """
   end
 end
+
+Kino.nothing()
 ```
 
 ```elixir
