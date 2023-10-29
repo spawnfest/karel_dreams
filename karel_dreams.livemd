@@ -646,18 +646,7 @@ defmodule Karel.UI do
 
     walls_text = Kino.Input.textarea("walls", default: default_walls, monospace: true)
 
-    default_script = """
-    [
-      {"put-color": "red"},
-      "step",
-      "turn-left",
-      "clear-color",
-      "step",
-      "turn-right"
-    ]
-    """
-
-    script_text = Kino.Input.textarea("", default: default_script, monospace: true)
+    script_text = Kino.Input.textarea("", default: default_script(), monospace: true)
     script_form = Kino.Control.form([script: script_text], submit: "run")
 
     ai_text = Kino.Input.textarea("", default: "go 2 steps", monospace: true)
@@ -809,6 +798,40 @@ defmodule Karel.UI do
     Kino.Frame.clear(state.output)
     Enum.each(out, &Kino.Frame.append(state.output, &1))
     %{state | out: out}
+  end
+
+  defp default_script do
+    """
+    [
+      "step", "step", "turn-left", "step", "step",
+      "turn-right",
+      {"put-color": "DarkOrange"}, "step",
+      {"put-color": "DarkOrange"}, "step",
+      {"put-color": "DarkOrange"}, "step",
+      {"put-color": "DarkOrange"}, "step",
+      {"put-color": "DarkOrange"},
+      "turn-left", "step", "step", "turn-left",
+      {"put-color": "DarkOrange"}, "step",
+      {"put-color": "DarkOrange"}, "step",
+      {"put-color": "DarkOrange"}, "step",
+      {"put-color": "DarkOrange"}, "step",
+      {"put-color": "DarkOrange"},
+      "turn-left", "turn-left", "step", "step",
+      "turn-right", "step",
+      {"put-color": "DarkOrange"},
+      "turn-right", "turn-right",
+      "step", "step", "step",
+      "turn-right",
+      {"put-color": "RoyalBlue"}, "step",
+      {"put-color": "RoyalBlue"}, "step",
+      {"put-color": "RoyalBlue"},
+      "turn-right", "turn-right",
+      "step", "step", "step",
+      {"put-color": "RoyalBlue"}, "step",
+      {"put-color": "RoyalBlue"}, "step",
+      "turn-right", "turn-right"
+    ]
+    """
   end
 end
 ```
