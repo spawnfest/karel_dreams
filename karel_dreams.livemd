@@ -284,6 +284,7 @@ defmodule Karel.Kino do
   end
 
   def handle_call({:put_color, color}, _, ctx) do
+    color = sanitize_color(color)
     game = Game.put_color(ctx.assigns.game, color)
     robot = game.robot
     broadcast_event(ctx, "put-color", %{x: robot.x, y: robot.y, color: color})
@@ -308,6 +309,13 @@ defmodule Karel.Kino do
       color = if color, do: ~s|style="--bg-color: #{color}"|
       ~s|<div id="board-field-#{x}-#{y}" #{color}>#{wall}</div>|
     end
+  end
+
+  defp sanitize_color(color) do
+    color
+    |> String.to_charlist()
+    |> Enum.filter(&(&1 in ?a..?z or &1 in ?A..?Z))
+    |> List.to_string()
   end
 
   asset "main.js" do
