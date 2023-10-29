@@ -522,6 +522,10 @@ defmodule Karel do
   defp cmd(karel, "clear-color") do
     Karel.Kino.clear_color(karel)
   end
+
+  defp cmd(_karel, invalid) do
+    {:error, {:invalid_cmd, invalid}}
+  end
 end
 ```
 
@@ -630,6 +634,14 @@ defmodule Karel.UI do
 
   defp report(state, :ok) do
     state
+  end
+
+  defp report(state, {:error, :wall}) do
+    info(state, "Karel hit the Wall!")
+  end
+
+  defp report(state, {:error, {:invalid_cmd, cmd}}) do
+    info(state, "Karel is confused with command #{inspect(cmd)}")
   end
 
   defp report(state, {:error, _} = result) do
