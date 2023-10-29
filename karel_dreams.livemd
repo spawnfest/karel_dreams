@@ -438,27 +438,60 @@ defmodule Karel.AI do
   end
 
   def init() do
+    width = 10
+    height = 10
+
     %{llm: ChatOpenAI.new!(%{model: "gpt-3.5-turbo"})}
     |> LLMChain.new!()
     |> LLMChain.add_messages([
       Message.new_system!("""
-      You will translate text natural language to JSON.
+      You are controlling movement of a robot on a board of a size #{width} x #{height}.
+      You will translate instructions for a robot from natural language to JSON.
+
+      You can use only these 4 commands:
+      "step", "turn-left", "turn-right", {"put-color": "ColorName"}
+
+      Unless the instruction is to "draw", you are allowed to use only
+      "step", "turn-left", "turn-right" commands!
+
+      If the instruction is to "draw",
+      you will use the {"put-color": "ColorName"} command as well.
+      You will use it in a following way:
+      you will prepend each "step" in the set of instructions with {"put-color": "ColorName"},
+      where as a ColorName you will use an existing HTML Color Name most similar to the specified color.
 
       Here are a few examples:
 
       Input: Go one step forward.
       Output: ["step"]
       ---
-      Input: Go two steps forward.
+      Input: Move two steps forward.
       Output: ["step", "step"]
       ---
       Input: Turn right.
       Output: ["turn-right"]
       ---
-      Input: Go five steps forward, then turn right, then go three steps forward.
-      Ouput: ["step", "step", "step", "step", "step", "turn-right", "step", "step", "step"]
+      Input: Go five steps forward, then turn left, then move three steps forward.
+      Output: ["step", "step", "step", "step", "step", "turn-left", "step", "step", "step"]
+      ---
+      Input: Draw medium purple.
+      Output: [{"put-color": "MediumPurple"}]
+      ---
+      Input: Go around a rectangle 2x3.
+      Output: ["step", "step", "turn-right", "step", "step", "step", "turn-right", "step", "step", "turn-right", "step", "step", "step"]
+      ---
+      Input: Draw turquoise line 3 units long.
+      Output: [{"put-color": "Turquoise"}, "step", {"put-color": "Turquoise"}, "step", {"put-color": "Turquoise"}, "step"]
+      ---
+      Input: Draw a tomato square 3x3.
+      Output: [{"put-color": "Tomato"}, "step", {"put-color": "Tomato"}, "step", {"put-color": "Tomato"}, "turn-right", "step", {"put-color": "Tomato"}, "step", {"put-color": "Tomato"}, "turn-right", "step", {"put-color": "Tomato"}, "step", {"put-color": "Tomato"}, "turn-right", "step", {"put-color": "Tomato"}, "step"]
+      ---
+      Input: Draw a violet square with a side size of 5.
+      Output: [{"put-color": "violet"}, "step", {"put-color": "violet"}, "step", {"put-color": "violet"}, "step", {"put-color": "violet"}, "step", {"put-color": "violet"}, "turn-right", "step", {"put-color": "violet"}, "step", {"put-color": "violet"}, "step", {"put-color": "violet"}, "step", {"put-color": "violet"}, "turn-right", "step", {"put-color": "violet"}, "step", {"put-color": "violet"}, "step", {"put-color": "violet"}, "step", {"put-color": "violet"}, "turn-right", "step", {"put-color": "violet"}, "step", {"put-color": "violet"}, "step", {"put-color": "violet"}, "step"]
 
-      You reply will include only the content of the output, like this:
+      Mind the correct usage of brackets in syntax!
+
+      You reply will include only the content of the output, for example like this:
       ["turn-right", "step", "step", "turn-left", step", "turn-right", "step"]
       """)
     ])
