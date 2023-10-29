@@ -433,43 +433,40 @@ defmodule Karel.AI do
   end
 
   def init() do
-    {:ok, updated_chain, _response} =
-      %{llm: ChatOpenAI.new!(%{model: "gpt-3.5-turbo"})}
-      |> LLMChain.new!()
-      |> LLMChain.add_messages([
-        Message.new_system!("""
-        You will translate text natural language to JSON.
+    %{llm: ChatOpenAI.new!(%{model: "gpt-3.5-turbo"})}
+    |> LLMChain.new!()
+    |> LLMChain.add_messages([
+      Message.new_system!("""
+      You will translate text natural language to JSON.
 
-        Here are a few examples:
+      Here are a few examples:
 
-        Input: Go one step forward.
-        Output: ["step"]
-        ---
-        Input: Go two steps forward.
-        Output: ["step", "step"]
-        ---
-        Input: Turn right.
-        Output: ["turn-right"]
-        ---
-        Input: Go five steps forward, then turn right, then go three steps forward.
-        Ouput: ["step", "step", "step", "step", "step", "turn-right", "step", "step", "step"]
+      Input: Go one step forward.
+      Output: ["step"]
+      ---
+      Input: Go two steps forward.
+      Output: ["step", "step"]
+      ---
+      Input: Turn right.
+      Output: ["turn-right"]
+      ---
+      Input: Go five steps forward, then turn right, then go three steps forward.
+      Ouput: ["step", "step", "step", "step", "step", "turn-right", "step", "step", "step"]
 
-        You reply will include only the content of the output, like this:
-        ["turn-right", "step", "step", "turn-left", step", "turn-right", "step"]
-        """)
-      ])
-      |> LLMChain.run()
-
-    updated_chain
+      You reply will include only the content of the output, like this:
+      ["turn-right", "step", "step", "turn-left", step", "turn-right", "step"]
+      """)
+    ])
+    |> LLMChain.run()
   end
 
   def translate(updated_chain, text) do
-    {:ok, _updated_chain, response} =
-      updated_chain
-      |> LLMChain.add_message(Message.new_user!(text))
-      |> LLMChain.run()
-
-    response.content
+    with {:ok, _updated_chain, response} <-
+           updated_chain
+           |> LLMChain.add_message(Message.new_user!(text))
+           |> LLMChain.run() do
+      {:ok, response.content}
+    end
   end
 end
 ```
@@ -477,125 +474,177 @@ end
 ```elixir
 defmodule Karel do
   def run_script(karel, text) do
-    with {:ok, script} <- parse_script(text),
-         {:ok, _} <- Enum.reduce_while(script, {:ok, %{}}, &cmd(karel, &1, &2)) do
-      :ok
+    with {:ok, script} <- parse_script(text) do
+      Enum.reduce_while(script, :ok, fn instr, acc ->
+        case cmd(karel, instr) do
+          :ok -> {:cont, acc}
+          error -> {:halt, error}
+        end
+      end)
     end
   end
 
   def run_ai(karel, chain, text) do
-    script = Karel.AI.translate(chain, text)
-    Karel.run_script(karel, script)
+    with {:ok, script} <- Karel.AI.translate(chain, text) do
+      Karel.run_script(karel, script)
+    end
   end
 
   defp parse_script(text) do
     Jason.decode(text)
   end
 
-  defp cmd(karel, "step", acc) do
-    Karel.Kino.step(karel)
-    Process.sleep(500)
-    {:cont, acc}
+  defp cmd(karel, "step") do
+    with :ok <- Karel.Kino.step(karel) do
+      Process.sleep(500)
+      :ok
+    end
   end
 
-  defp cmd(karel, "turn-right", acc) do
-    Karel.Kino.turn(karel, :right)
-    {:cont, acc}
+  defp cmd(karel, "turn-right") do
+    with :ok <- Karel.Kino.turn(karel, :right) do
+      Process.sleep(100)
+      :ok
+    end
   end
 
-  defp cmd(karel, "turn-left", acc) do
-    Karel.Kino.turn(karel, :left)
-    {:cont, acc}
+  defp cmd(karel, "turn-left") do
+    with :ok <- Karel.Kino.turn(karel, :left) do
+      Process.sleep(100)
+      :ok
+    end
   end
 
-  defp cmd(karel, %{"put-color" => color}, acc) do
+  defp cmd(karel, %{"put-color" => color}) do
     Karel.Kino.put_color(karel, color)
-    {:cont, acc}
   end
 
-  defp cmd(karel, "clear-color", acc) do
+  defp cmd(karel, "clear-color") do
     Karel.Kino.clear_color(karel)
-    {:cont, acc}
   end
 end
 ```
 
 ```elixir
-walls = [{5, 5}, {6, 5}, {2, 1}]
-karel = Karel.Kino.new(Karel.Game.new(walls: walls))
+defmodule Karel.UI do
+  alias Kino.Layout
 
-step_button = Kino.Control.button("step")
-turn_left_button = Kino.Control.button("turn left")
-turn_right_button = Kino.Control.button("turn right")
+  def new do
+    walls = [{5, 5}, {6, 5}, {2, 1}]
+    karel = Karel.Kino.new(Karel.Game.new(walls: walls))
 
-default_script = """
-[
-  {"put-color": "red"},
-  "step",
-  "turn-left",
-  "clear-color",
-  "step",
-  "turn-right"
-]
-"""
+    step_button = Kino.Control.button("step")
+    turn_left_button = Kino.Control.button("turn left")
+    turn_right_button = Kino.Control.button("turn right")
 
-script_text = Kino.Input.textarea("", default: default_script, monospace: true)
-script_form = Kino.Control.form([script: script_text], submit: "run")
+    default_script = """
+    [
+      {"put-color": "red"},
+      "step",
+      "turn-left",
+      "clear-color",
+      "step",
+      "turn-right"
+    ]
+    """
 
-ai_text = Kino.Input.textarea("", default: "go 2 steps", monospace: true)
-ai_form = Kino.Control.form([script: ai_text], submit: "run")
+    script_text = Kino.Input.textarea("", default: default_script, monospace: true)
+    script_form = Kino.Control.form([script: script_text], submit: "run")
 
-events = [
-  step: step_button,
-  turn_left: turn_left_button,
-  turn_right: turn_right_button,
-  script_form: script_form,
-  ai_form: ai_form
-]
+    ai_text = Kino.Input.textarea("", default: "go 2 steps", monospace: true)
+    ai_form = Kino.Control.form([script: ai_text], submit: "run")
 
-stream = Kino.Control.tagged_stream(events)
+    output = Kino.Frame.new()
 
-Kino.listen(stream, %{}, fn
-  {:step, %{type: :click}}, state ->
-    Karel.Kino.step(karel)
-    {:cont, state}
+    events = [
+      step: step_button,
+      turn_left: turn_left_button,
+      turn_right: turn_right_button,
+      script_form: script_form,
+      ai_form: ai_form
+    ]
 
-  {:turn_left, %{type: :click}}, state ->
-    Karel.Kino.turn(karel, :left)
-    {:cont, state}
+    stream = Kino.Control.tagged_stream(events)
 
-  {:turn_right, %{type: :click}}, state ->
-    Karel.Kino.turn(karel, :right)
-    {:cont, state}
+    Kino.listen(stream, %{out: [], output: output}, fn
+      {:step, %{type: :click}}, state ->
+        state = report(state, Karel.Kino.step(karel))
+        {:cont, state}
 
-  {:script_form, %{data: %{script: script}, type: :submit}}, state ->
-    Karel.run_script(karel, script)
-    {:cont, state}
+      {:turn_left, %{type: :click}}, state ->
+        state = report(state, Karel.Kino.turn(karel, :left))
+        {:cont, state}
 
-  {:ai_form, %{data: %{script: script}, type: :submit}}, state ->
-    chain =
-      case state[:ai] do
-        nil ->
-          :ok = Karel.AI.openai_key()
-          Karel.AI.init()
+      {:turn_right, %{type: :click}}, state ->
+        state = report(state, Karel.Kino.turn(karel, :right))
+        {:cont, state}
 
-        chain ->
-          chain
-      end
+      {:script_form, %{data: %{script: script}, type: :submit}}, state ->
+        state = report(state, Karel.run_script(karel, script))
+        {:cont, state}
 
-    Karel.run_ai(karel, chain, script)
-    {:cont, Map.put(state, :ai, chain)}
-end)
+      {:ai_form, %{data: %{script: script}, type: :submit}}, state ->
+        state = info(state, "calling AI started")
 
-Kino.Layout.grid(
-  [
-    karel,
-    Kino.Layout.tabs(
-      manual: Kino.Layout.grid([turn_left_button, step_button, turn_right_button], columns: 3),
-      script: Kino.Layout.grid([script_form]),
-      ai: Kino.Layout.grid([ai_form])
-    )
-  ],
-  columns: 2
-)
+        state =
+          case init_ai(state) do
+            {:ok, state} ->
+              report(state, Karel.run_ai(karel, state.ai, script))
+
+            error ->
+              report(state, error)
+          end
+
+        state = info(state, "calling AI finished")
+        {:cont, state}
+    end)
+
+    Layout.grid([
+      Layout.grid(
+        [
+          karel,
+          Layout.tabs(
+            manual: Layout.grid([turn_left_button, step_button, turn_right_button], columns: 3),
+            script: Layout.grid([script_form]),
+            ai: Layout.grid([ai_form])
+          )
+        ],
+        columns: 2
+      ),
+      output
+    ])
+  end
+
+  defp init_ai(state) do
+    case state[:ai] do
+      nil ->
+        with :ok <- Karel.AI.openai_key(),
+             {:ok, chain, _response} <- Karel.AI.init() do
+          {:ok, Map.put(state, :ai, chain)}
+        end
+
+      _chain ->
+        {:ok, state}
+    end
+  end
+
+  defp report(state, :ok) do
+    state
+  end
+
+  defp report(state, {:error, _} = result) do
+    info(state, result)
+  end
+
+  defp info(state, msg) do
+    out = Enum.take([{"#{DateTime.utc_now(:millisecond)}", msg} | state.out], 10)
+    Kino.Frame.clear(state.output)
+    Enum.each(out, &Kino.Frame.append(state.output, &1))
+    %{state | out: out}
+  end
+end
+```
+
+```elixir
+Karel.UI.new()
 ```
