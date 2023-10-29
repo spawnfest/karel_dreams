@@ -2,7 +2,7 @@
 
 Control a robot named Karel moving on a board using the AI!  (Or with a script.)
 
-This is a [Livebook app]((https://livebook.dev/)) created as an entry for the [SpawnFest 2023](https://spawnfest.org/) contest.
+This is a [Livebook app](https://livebook.dev/) created as an entry for the [SpawnFest 2023](https://spawnfest.org/) contest.
 
 ![app screenshot](screenshot.jpg)
 
