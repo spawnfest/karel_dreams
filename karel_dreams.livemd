@@ -586,13 +586,17 @@ defmodule Karel.UI do
   alias Kino.Layout
 
   def new do
-    walls = [{5, 5}, {6, 5}, {2, 1}]
+    default_walls = "[[10, 8], [6, 10], [7, 10], [2, 6]]"
+    {:ok, walls} = convert_walls(default_walls)
+
     karel = Karel.Kino.new(Karel.Game.new(walls: walls))
 
     step_button = Kino.Control.button("step")
     turn_left_button = Kino.Control.button("turn left")
     turn_right_button = Kino.Control.button("turn right")
     reset_button = Kino.Control.button("reset board")
+
+    walls_text = Kino.Input.textarea("walls", default: default_walls, monospace: true)
 
     default_script = """
     [
@@ -617,6 +621,7 @@ defmodule Karel.UI do
       step: step_button,
       turn_left: turn_left_button,
       turn_right: turn_right_button,
+      walls_change: walls_text,
       reset: reset_button,
       script_form: script_form,
       ai_form: ai_form
@@ -624,7 +629,7 @@ defmodule Karel.UI do
 
     stream = Kino.Control.tagged_stream(events)
 
-    Kino.listen(stream, %{out: [], output: output}, fn
+    Kino.listen(stream, %{out: [], output: output, walls: walls}, fn
       {:step, %{type: :click}}, state ->
         state = report(state, Karel.Kino.step(karel))
         {:cont, state}
@@ -637,9 +642,18 @@ defmodule Karel.UI do
         state = report(state, Karel.Kino.turn(karel, :right))
         {:cont, state}
 
+      {:walls_change, %{type: :change, value: text}}, state ->
+        state =
+          case convert_walls(text) do
+            {:ok, walls} -> %{state | walls: walls}
+            error -> report(state, error)
+          end
+
+        {:cont, state}
+
       {:reset, %{type: :click}}, state ->
         state =
-          case Karel.Kino.reset(karel, Karel.Game.new(walls: walls)) do
+          case Karel.Kino.reset(karel, Karel.Game.new(walls: state.walls)) do
             :ok ->
               Kino.Frame.clear(state.output)
               %{state | out: []}
@@ -680,6 +694,7 @@ defmodule Karel.UI do
             manual:
               Layout.grid([
                 Layout.grid([turn_left_button, step_button, turn_right_button], columns: 3),
+                walls_text,
                 reset_button
               ])
           )
@@ -700,6 +715,27 @@ defmodule Karel.UI do
 
       _chain ->
         {:ok, state}
+    end
+  end
+
+  defp convert_walls(text) do
+    case Jason.decode(text) do
+      {:ok, walls} when is_list(walls) ->
+        walls =
+          walls
+          |> Enum.filter(fn
+            [x, y] when is_integer(x) and is_integer(y) -> true
+            _ -> false
+          end)
+          |> Enum.map(fn [x, y] -> {x, y} end)
+
+        {:ok, walls}
+
+      {:ok, other} ->
+        {:error, "invalid walls: #{inspect(other)}"}
+
+      error ->
+        error
     end
   end
 
