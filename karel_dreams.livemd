@@ -521,9 +521,6 @@ end
 ```
 
 ```elixir
-:ok = Karel.AI.openai_key()
-chain = Karel.AI.init()
-
 walls = [{5, 5}, {6, 5}, {2, 1}]
 karel = Karel.Kino.new(Karel.Game.new(walls: walls))
 
@@ -558,12 +555,36 @@ events = [
 
 stream = Kino.Control.tagged_stream(events)
 
-Kino.listen(stream, fn
-  {:step, %{type: :click}} -> Karel.Kino.step(karel)
-  {:turn_left, %{type: :click}} -> Karel.Kino.turn(karel, :left)
-  {:turn_right, %{type: :click}} -> Karel.Kino.turn(karel, :right)
-  {:script_form, %{data: %{script: script}, type: :submit}} -> Karel.run_script(karel, script)
-  {:ai_form, %{data: %{script: script}, type: :submit}} -> Karel.run_ai(karel, chain, script)
+Kino.listen(stream, %{}, fn
+  {:step, %{type: :click}}, state ->
+    Karel.Kino.step(karel)
+    {:cont, state}
+
+  {:turn_left, %{type: :click}}, state ->
+    Karel.Kino.turn(karel, :left)
+    {:cont, state}
+
+  {:turn_right, %{type: :click}}, state ->
+    Karel.Kino.turn(karel, :right)
+    {:cont, state}
+
+  {:script_form, %{data: %{script: script}, type: :submit}}, state ->
+    Karel.run_script(karel, script)
+    {:cont, state}
+
+  {:ai_form, %{data: %{script: script}, type: :submit}}, state ->
+    chain =
+      case state[:ai] do
+        nil ->
+          :ok = Karel.AI.openai_key()
+          Karel.AI.init()
+
+        chain ->
+          chain
+      end
+
+    Karel.run_ai(karel, chain, script)
+    {:cont, Map.put(state, :ai, chain)}
 end)
 
 Kino.Layout.grid(
